@@ -1,10 +1,11 @@
-"""🧭 ПолиГид (PolyGuide): Личный кабинет и Справочник первокурсника Московского Политеха.
+"""🧭 ПолиГид (PolyGuide): Единый цифровой навигатор Московского Политеха.
 
+Универсальный портал для студентов, абитуриентов, родителей и сотрудников университета.
 Модульная архитектура:
-- Вкладка 1: Личный кабинет студента (Дашборд и дедлайны)
+- Вкладка 1: Инфоцентр кампуса (Навигатор для студентов, абитуриентов и родителей)
 - Вкладка 2: Расписание занятий (локальный кэш + интеграция с rasp.dmami.ru)
-- Вкладка 3: Интерактивный справочник первокурсника (база знаний по регламентам)
-- Вкладка 4: Интеллектуальный ИИ-ассистент (RAG: BM25 поиск + LLM)
+- Вкладка 3: База знаний и регламенты (FAQ, правила приема, оплата, стипендии, общежития, контакты)
+- Вкладка 4: Интеллектуальный ИИ-консультант (RAG: поиск по официальным регламентам + LLM)
 """
 
 import json
@@ -25,15 +26,23 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Пользовательские стили для оформления в стиле современного студенческого портала
+# Пользовательские стили оформления
 st.markdown("""
 <style>
-    .metric-card {
-        background: linear-gradient(135deg, rgba(20, 30, 48, 0.05), rgba(36, 59, 85, 0.08));
-        border: 1px solid rgba(128, 128, 128, 0.2);
+    .portal-banner {
+        background: linear-gradient(135deg, #0d3b66 0%, #001e3d 100%);
+        color: white;
+        padding: 24px 30px;
         border-radius: 12px;
-        padding: 16px 20px;
-        margin-bottom: 12px;
+        margin-bottom: 20px;
+    }
+    .portal-card {
+        background: rgba(128, 128, 128, 0.05);
+        border: 1px solid rgba(128, 128, 128, 0.2);
+        border-radius: 10px;
+        padding: 18px 20px;
+        height: 100%;
+        margin-bottom: 15px;
     }
     .lesson-card {
         border-left: 4px solid #0066cc;
@@ -70,7 +79,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-# --- Инициализация и кэширование компонентов ---
+# --- Инициализация и кэширование компонентов системы ---
 @st.cache_resource
 def init_system():
     """Загрузка документов, построение поискового индекса BM25 и сервисов."""
@@ -84,7 +93,7 @@ def init_system():
 chunks, retriever, llm, schedule_service = init_system()
 
 
-# Хелперы для загрузки справочных данных
+# Хелперы загрузки структурированных данных
 @st.cache_data
 def load_faq():
     faq_path = "config/faq.json"
@@ -107,34 +116,45 @@ faq_data = load_faq()
 contacts_data = load_contacts()
 
 
-# --- Боковая панель: Профиль и навигация ---
+# --- Боковая панель: Профиль и статус пользователя ---
 with st.sidebar:
     st.markdown("### 🧭 ПолиГид (PolyGuide)")
-    st.caption("Московский Политех · 2026")
+    st.caption("Единый навигатор · Московский Политех")
     
     st.divider()
     
-    # Виджет студента
-    st.markdown("#### 👤 Профиль студента")
-    user_group = st.selectbox(
-        "Академическая группа:",
-        options=schedule_service.get_available_groups(),
+    # Селектор категории пользователя
+    st.markdown("#### 👤 Кто вы?")
+    user_role = st.selectbox(
+        "Выберите ваш статус:",
+        options=["Студент", "Абитуриент", "Родитель", "Сотрудник / Гость"],
         index=0,
-        help="Выберите группу для синхронизации расписания"
-    )
-    st.markdown(
-        f"""
-        - **Курс:** 1 курс (бакалавриат)
-        - **Форма:** Очная (бюджет)
-        - **Факультет:** Информационных технологий
-        """
+        help="Интерфейс адаптирует быстрые подсказки под ваш статус"
     )
     
+    if user_role == "Студент":
+        user_group = st.selectbox(
+            "Академическая группа:",
+            options=schedule_service.get_available_groups(),
+            index=0,
+            help="Выберите группу для синхронизации расписания"
+        )
+        st.caption("🎓 Доступны расписание, сессия, стипендии и проектная деятельность.")
+    elif user_role == "Абитуриент":
+        user_group = "241-321"
+        st.info("🎒 **Приёмная комиссия:**\n\nБ. Семёновская, 38, ауд. В-202\n\nТел: `+7 (495) 223-05-23`\n\nEmail: `priem@mospolytech.ru`")
+    elif user_role == "Родитель":
+        user_group = "241-321"
+        st.info("👨‍👩‍👧 **Договорной отдел (Оплата):**\n\nБ. Семёновская, 38, ауд. А-210\n\nМат. капитал, налоговый вычет 13%, рассрочка")
+    else:
+        user_group = "241-321"
+        st.caption("Добро пожаловать в Московский Политех!")
+        
     st.divider()
     
-    # Статус базы знаний RAG
-    st.markdown("#### 📚 База регламентов")
-    st.write(f"Фрагментов в индексе: **{len(chunks)}**")
+    # Статус базы регламентов RAG
+    st.markdown("#### 📚 База знаний вуза")
+    st.write(f"Фрагментов в поиске: **{len(chunks)}**")
     if chunks:
         sources = sorted(list(set(c.source for c in chunks)))
         with st.expander("Загруженные регламенты"):
@@ -142,99 +162,131 @@ with st.sidebar:
                 st.caption(f"• `{s}`")
     
     st.divider()
-    st.markdown("##### 🔗 Полезные ссылки")
+    st.markdown("##### 🔗 Официальные ресурсы")
     st.markdown("""
-    - [Личный кабинет Мосполитеха](https://online.mospolytech.ru/)
-    - [СДО (Moodle)](https://online.mospolytech.ru/)
-    - [Расписание занятий (Официальное)](https://rasp.dmami.ru/)
+    - [Официальный сайт Политеха](https://mospolytech.ru/)
+    - [Личный кабинет обучающегося](https://online.mospolytech.ru/)
+    - [Раздел для абитуриентов](https://mospolytech.ru/postupayushchim/)
+    - [Официальное расписание](https://rasp.dmami.ru/)
     """)
 
 
-# --- Верхний заголовок ---
-st.title("🧭 ПолиГид: Личный кабинет & Справочник")
-st.caption("Официальный цифровой навигатор, расписание и база регламентов Московского Политеха")
+# --- Главная шапка портала ---
+st.title("🧭 ПолиГид | Московский Политех")
+st.caption("Единый информационный навигатор: сервисы, расписание, регламенты и умный поиск для студентов, абитуриентов и родителей")
 
-# --- Основные вкладки портала ---
-tab_cabinet, tab_schedule, tab_guide, tab_assistant = st.tabs([
-    "🏠 Личный кабинет",
-    "📅 Расписание",
-    "📖 Справочник регламентов",
+# --- Основные разделы портала ---
+tab_home, tab_schedule, tab_wiki, tab_assistant = st.tabs([
+    "🏛️ Инфоцентр кампуса",
+    "📅 Расписание занятий",
+    "📚 База знаний и регламенты",
     "🤖 ИИ-Консультант"
 ])
 
 
 # =====================================================================
-# ВКЛАДКА 1: Личный кабинет (Дашборд)
+# ВКЛАДКА 1: Инфоцентр кампуса (Главная)
 # =====================================================================
-with tab_cabinet:
-    st.subheader("👋 Добро пожаловать в ПолиГид!")
-    st.write(
-        "Здесь собраны ключевые сервисы для первокурсника: расписание пар на сегодня, "
-        "контрольные точки проектной деятельности и быстрый доступ к регламентам университета."
-    )
+with tab_home:
+    st.markdown("""
+    ### 🏛️ Добро пожаловать в единую точку входа Московского Политеха!
+    Здесь собрана ключевая информация для всех участников университетской жизни: от правил поступления до учебных регламентов и расписания.
+    """)
     
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.info("📌 **Текущая неделя:** Числитель\n\nСеместр: Осенний 2026/2027")
-    with col2:
-        st.warning("⏳ **Ближайший дедлайн:**\n\nКТ-1: Паспорт проекта (до 15 ноября)")
-    with col3:
-        st.success("💳 **Стипендия:**\n\nНачислена за текущий месяц (25-е число)")
+    # 3 фокусных блока по аудиториям
+    col_stud, col_abit, col_parent = st.columns(3)
+    
+    with col_stud:
+        st.markdown("""
+        <div class="portal-card">
+            <h4>🎓 Студентам</h4>
+            <p style="color:#888; font-size:13px;">Учебный процесс и кампус</p>
+            <ul>
+                <li>Расписание пар и звонков</li>
+                <li>БРС, зачёты и сессия</li>
+                <li>Стипендии и материальная помощь</li>
+                <li>Проектная деятельность (ДМ2026)</li>
+                <li>Заказ справок об обучении</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+        
+    with col_abit:
+        st.markdown("""
+        <div class="portal-card">
+            <h4>🎒 Абитуриентам</h4>
+            <p style="color:#888; font-size:13px;">Поступление и правила приёма</p>
+            <ul>
+                <li>Подача документов и Госуслуги</li>
+                <li>Проходные баллы и направления</li>
+                <li>Дни открытых дверей</li>
+                <li>Общежития на время экзаменов</li>
+                <li>Особые права и льготы</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+        
+    with col_parent:
+        st.markdown("""
+        <div class="portal-card">
+            <h4>👨‍👩‍👧 Родителям</h4>
+            <p style="color:#888; font-size:13px;">Финансы, гарантии и безопасность</p>
+            <ul>
+                <li>Оплата обучения (рассрочка, семестры)</li>
+                <li>Оплата материнским капиталом</li>
+                <li>Налоговый вычет 13%</li>
+                <li>Отсрочка от призыва в армию</li>
+                <li>Контакты руководства и деканатов</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
 
     st.markdown("---")
     
-    # Ближайшие пары сегодня
-    st.subheader(f"📅 Пары на сегодня (Группа {user_group})")
-    
-    # Определяем день недели (по умолчанию Понедельник для демонстрации)
-    days_map = {0: "Понедельник", 1: "Вторник", 2: "Среда", 3: "Четверг", 4: "Пятница", 5: "Суббота", 6: "Воскресенье"}
-    current_day = days_map.get(datetime.today().weekday(), "Понедельник")
-    if current_day == "Воскресенье":
-        current_day = "Понедельник"
-        
-    today_lessons = schedule_service.get_schedule(user_group, current_day)
-    
-    if today_lessons:
-        st.caption(f"Расписание на **{current_day}**:")
-        for lesson in today_lessons:
-            col_time, col_info = st.columns([1, 4])
-            with col_time:
-                st.markdown(f"**Пара {lesson.number}**<br>`{lesson.time_start} - {lesson.time_end}`", unsafe_allow_html=True)
-            with col_info:
-                badge = f"<span class='badge-practice'>{lesson.lesson_type}</span>"
-                if lesson.lesson_type == "Лекция":
-                    badge = f"<span class='badge-lecture'>{lesson.lesson_type}</span>"
-                elif lesson.lesson_type == "Лабораторная":
-                    badge = f"<span class='badge-lab'>{lesson.lesson_type}</span>"
-                    
-                st.markdown(
-                    f"**{lesson.subject}** {badge}<br>"
-                    f"👨‍🏫 {lesson.teacher} &nbsp;|&nbsp; 📍 ауд. **{lesson.room}** ({lesson.campus})",
-                    unsafe_allow_html=True
-                )
-            st.divider()
-    else:
-        st.write("🎉 Сегодня занятий нет или день самостоятельной подготовки!")
-        
-    # Блок быстрых действий
-    st.subheader("⚡ Быстрые действия")
-    qa_col1, qa_col2, qa_col3 = st.columns(3)
-    with qa_col1:
-        st.markdown("**📄 Справка об обучении**")
-        st.caption("Для военкомата, налогового вычета или пенсионного фонда.")
-        st.button("Как получить справку →", key="btn_ref_cert", use_container_width=True)
-    with qa_col2:
-        st.markdown("**💰 Стипендиальные выплаты**")
-        st.caption("Условия получения академической и повышенной стипендии.")
-        st.button("Узнать регламент выплат →", key="btn_ref_scholarship", use_container_width=True)
-    with qa_col3:
-        st.markdown("**🎯 Проектная деятельность**")
-        st.caption("Критерии оценивания и правила сдачи отчетов по ДМ2026.")
-        st.button("Открыть регламент проектов →", key="btn_ref_project", use_container_width=True)
+    # Если студент — показываем оперативную сводку расписания на сегодня
+    if user_role == "Студент":
+        st.subheader(f"📅 Пары на сегодня (Группа {user_group})")
+        days_map = {0: "Понедельник", 1: "Вторник", 2: "Среда", 3: "Четверг", 4: "Пятница", 5: "Суббота", 6: "Воскресенье"}
+        current_day = days_map.get(datetime.today().weekday(), "Понедельник")
+        if current_day == "Воскресенье":
+            current_day = "Понедельник"
+            
+        today_lessons = schedule_service.get_schedule(user_group, current_day)
+        if today_lessons:
+            st.caption(f"Учебные занятия на **{current_day}**:")
+            for lesson in today_lessons:
+                col_t, col_i = st.columns([1, 4])
+                with col_t:
+                    st.markdown(f"**Пара {lesson.number}**<br>`{lesson.time_start} - {lesson.time_end}`", unsafe_allow_html=True)
+                with col_i:
+                    badge = f"<span class='badge-practice'>{lesson.lesson_type}</span>"
+                    if lesson.lesson_type == "Лекция":
+                        badge = f"<span class='badge-lecture'>{lesson.lesson_type}</span>"
+                    elif lesson.lesson_type == "Лабораторная":
+                        badge = f"<span class='badge-lab'>{lesson.lesson_type}</span>"
+                        
+                    st.markdown(
+                        f"**{lesson.subject}** {badge}<br>"
+                        f"👨‍🏫 {lesson.teacher} &nbsp;|&nbsp; 📍 ауд. **{lesson.room}** ({lesson.campus})",
+                        unsafe_allow_html=True
+                    )
+                st.divider()
+        else:
+            st.info(f"На {current_day} занятий нет. Время для подготовки проектов!")
+            
+    # Корпуса университета
+    st.subheader("📍 Корпуса Московского Политеха")
+    corp1, corp2, corp3 = st.columns(3)
+    with corp1:
+        st.markdown("**Главный корпус (Б. Семёновская)**\n\nул. Большая Семёновская, д. 38 (м. Электрозаводская)")
+    with corp2:
+        st.markdown("**Корпус на Автозаводской**\n\nул. Автозаводская, д. 16 (м. Автозаводская)")
+    with corp3:
+        st.markdown("**Корпус на Прянишникова**\n\nул. Прянишникова, д. 2А (м. Тимирязевская)")
 
 
 # =====================================================================
-# ВКЛАДКА 2: Расписание
+# ВКЛАДКА 2: Расписание занятий
 # =====================================================================
 with tab_schedule:
     st.subheader("📅 Расписание учебных занятий")
@@ -287,44 +339,40 @@ with tab_schedule:
     else:
         st.info(f"На **{selected_day}** занятий в расписании не найдено.")
         
-    st.info("💡 **Для разработчиков (Модуль расписания):** Модуль подключен к `core.schedule_service`. В дальнейшем здесь подключается прямой запрос к API `https://rasp.dmami.ru/`.")
+    st.info("💡 **Сервис расписания:** Модуль подключен к `core.schedule_service`. В дальнейшем здесь подключается прямой запрос к API `https://rasp.dmami.ru/`.")
 
 
 # =====================================================================
-# ВКЛАДКА 3: Справочник первокурсника
+# ВКЛАДКА 3: База знаний и регламенты
 # =====================================================================
-with tab_guide:
-    st.subheader("📖 Официальный справочник первокурсника")
-    st.caption("Проверенная база знаний по правилам, регламентам и службам кампуса")
+with tab_wiki:
+    st.subheader("📚 База знаний и регламенты Московского Политеха")
+    st.caption("Проверенные ответы на вопросы студентов, абитуриентов и родителей по официальным правилам вуза")
     
-    search_guide = st.text_input("🔍 Быстрый поиск по справочнику:", placeholder="Например: социальная стипендия, справка, общежитие...")
+    search_guide = st.text_input("🔍 Поиск по базе знаний:", placeholder="Например: материнский капитал, поступление, стипендия, общежитие, справка...")
     
-    # Категории справочника
     cat_names = ["Все темы"] + [cat["title"] for cat in faq_data.get("categories", [])]
-    selected_cat = st.radio("Категория:", options=cat_names, horizontal=True)
+    selected_cat = st.radio("Тематический раздел:", options=cat_names, horizontal=True)
     
     st.markdown("---")
     
-    # Вывод статей FAQ
-    matched_items = 0
+    # Вывод статей базы знаний
     for cat in faq_data.get("categories", []):
         if selected_cat != "Все темы" and selected_cat != cat["title"]:
             continue
             
         st.markdown(f"### {cat['title']}")
         for item in cat.get("items", []):
-            # Простая фильтрация по строке поиска
             if search_guide and (search_guide.lower() not in item["question"].lower() and search_guide.lower() not in item["answer"].lower()):
                 continue
                 
-            matched_items += 1
             with st.expander(f"❓ {item['question']}"):
                 st.markdown(item["answer"])
                 st.caption(f"📜 *Официальный источник:* {item.get('source', 'Регламент университета')}")
                 
-    # Контакты подразделений
+    # Контакты всех служб вуза
     st.markdown("---")
-    st.markdown("### 🏢 Контакты и часы приёма подразделений")
+    st.markdown("### 🏢 Контакты подразделений университета")
     for dep in contacts_data.get("departments", []):
         with st.expander(f"📍 {dep['name']}"):
             st.write(dep["description"])
@@ -334,28 +382,26 @@ with tab_guide:
 
 
 # =====================================================================
-# ВКЛАДКА 4: ИИ-Консультант (RAG-чат)
+# ВКЛАДКА 4: ИИ-Консультант (RAG-поиск)
 # =====================================================================
 with tab_assistant:
-    st.subheader("🤖 Интеллектуальный ИИ-ассистент")
-    st.caption("Задайте любой вопрос в свободной форме. Ответ формируется строго по официальным документам с ссылками на страницы.")
+    st.subheader("🤖 Интеллектуальный ИИ-консультант")
+    st.caption("Отвечает на любые вопросы студентов, абитуриентов и родителей строго по официальным документам вуза со ссылками на первоисточники.")
     
-    # Хранилище истории диалога
+    # Хранилище сообщений
     if "messages" not in st.session_state:
         st.session_state.messages = [
             {
                 "role": "assistant",
-                "content": "Привет! Я твой цифровой ассистент. Я могу ответить на любой сложный вопрос по стипендиям, регламентам проектной деятельности, сессии или общежитиям."
+                "content": "Здравствуйте! Я цифровой консультант ПолиГид. Задайте любой вопрос по поступлению, учебному процессу, оплате обучения, общежитиям или регламентам Московского Политеха."
             }
         ]
 
-    # Отрисовка сообщений
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
 
-    # Ввод вопроса
-    if prompt := st.chat_input("Спросите что угодно по регламентам (например: сколько баллов нужно по проектной деятельности?)"):
+    if prompt := st.chat_input("Например: как оплатить учебу материнским капиталом? или: сколько баллов нужно по проектной деятельности?"):
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
