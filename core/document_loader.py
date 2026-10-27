@@ -44,8 +44,32 @@ def load_pdf_file(file_path: str) -> List[Chunk]:
     return chunks
 
 
-def load_all_documents(folder_path: str = "data/documents") -> List[Chunk]:
-    """Основная функция: загружает все поддерживаемые файлы из папки."""
+# Служебные и системные файлы, исключаемые из базы знаний
+IGNORED_FILES = {
+    "readme.md",
+    ".gitkeep",
+    ".gitignore",
+}
+
+# Ключевые слова для исключения бюрократических документов и приказов из студенческого поиска
+EXCLUDED_KEYWORDS = [
+    "распоряжение",
+    "приказ",
+    "бюрократ",
+    "bureaucracy",
+    "archive",
+]
+
+
+def load_all_documents(
+    folder_path: str = "data/documents",
+    exclude_bureaucracy: bool = True
+) -> List[Chunk]:
+    """Основная функция: загружает все поддерживаемые файлы из папки.
+
+    Бюрократические документы, регламенты ректората и служебные файлы
+    отфильтровываются или хранятся отдельно в data/bureaucracy/.
+    """
     all_chunks = []
     if not os.path.exists(folder_path):
         return all_chunks
@@ -54,6 +78,16 @@ def load_all_documents(folder_path: str = "data/documents") -> List[Chunk]:
         full_path = os.path.join(folder_path, filename)
         if not os.path.isfile(full_path):
             continue
+
+        # Пропуск скрытых и служебных файлов (например, README.md)
+        if filename.startswith(".") or filename.lower() in IGNORED_FILES:
+            continue
+
+        # Фильтрация бюрократических документов из студенческой базы
+        if exclude_bureaucracy:
+            lower_name = filename.lower()
+            if any(keyword in lower_name for keyword in EXCLUDED_KEYWORDS):
+                continue
 
         if filename.endswith((".txt", ".md")):
             all_chunks.extend(load_text_file(full_path))
